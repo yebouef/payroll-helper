@@ -58,8 +58,8 @@
       paydayISO: null,            // current pay day (derived from schedule on boot)
       periodStartISO: "2026-06-01",
       periodEndISO: "2026-06-14",
-      to: "",   // set in Setup → saved locally (per user)
-      from: "", // set in Setup → saved locally (per user)
+      to: "admin@impactcareohio.com", // coordinator (fixed); editable in Setup
+      from: "", // each user sets their own name/email in Setup → saved locally
     };
     try { return Object.assign(d, JSON.parse(LS.get(SETTINGS_KEY) || "{}")); }
     catch (e) { return d; }
@@ -826,17 +826,34 @@
     navigator.clipboard.writeText(text).then(function () { flash("saveStatus", "Copied draft to clipboard."); });
   });
 
-  // ---- save period + export ----
-  $("savePeriod").addEventListener("click", function () {
+  // ---- validate the draft before it can be confirmed/sent ----
+  // Surfaces anything that would make the email wrong to send. Returns problems[].
+  function validateDraft() {
     if (!state.draft) buildDraft();
     var inc = includedClaimed();
-    var reviewFlags = 0; inc.forEach(function (s){ s.flags.forEach(function (f){ if (f.level==="review") reviewFlags++; }); });
+    var problems = [];
+    if (!inc.length && !state.adjustments.length) problems.push("Nothing to send — no shifts are selected and there's no back pay.");
+    var unconf = {};
+    inc.forEach(function (s) { if (s.rate == null) unconf[s.clientName] = true; });
+    if (Object.keys(unconf).length) problems.push("No rate set for: " + Object.keys(unconf).join(", ") + ". Set each one on the Rule Library tab.");
+    var reviewFlags = 0;
+    inc.forEach(function (s){ s.flags.forEach(function (f){ if (f.level === "review" && f.code !== "no_rate") reviewFlags++; }); });
+    if (reviewFlags) problems.push(reviewFlags + " item(s) still need review on the Review tab.");
+    if (!String(state.settings.from || "").trim()) problems.push("Set your name/email in the From field (Setup tab) before confirming.");
+    return { ok: problems.length === 0, problems: problems };
+  }
+
+  // Build the saved period record. status: "draft" | "confirmed".
+  function buildPeriodRecord(status) {
+    if (!state.draft) buildDraft();
+    var inc = includedClaimed();
+    var reviewFlags = 0; inc.forEach(function (s){ s.flags.forEach(function (f){ if (f.level === "review") reviewFlags++; }); });
     var id = "pp_" + state.settings.periodStartISO;
     var existing = store.get(id) || {};
     var expectedTotal = state.draft.totals.grandPay; // emailed total, INCLUDING back pay
     var rec = Storage.buildRecord({
       id: id,
-      status: reviewFlags ? "needs-review" : "draft",
+      status: status || (reviewFlags ? "needs-review" : "draft"),
       initials: state.settings.initials,
       periodStartISO: state.settings.periodStartISO,
       periodEndISO: state.settings.periodEndISO,
@@ -852,11 +869,36 @@
     rec.amountPaid = existing.amountPaid != null ? existing.amountPaid : null;
     rec.shortfall = rec.amountPaid != null ? round2(expectedTotal - rec.amountPaid) : null;
     rec.carried = existing.carried || false;
+    if (status === "confirmed") rec.confirmedDate = todayISO();
+    else if (existing.confirmedDate) rec.confirmedDate = existing.confirmedDate;
     rec.ruleLibSnapshot = JSON.parse(JSON.stringify(state.ruleLib)); // governed rule versions used
     rec.audit = Audit.generate({ shifts: inc, table: table(), ruleLib: state.ruleLib, startISO: state.settings.periodStartISO, endISO: state.settings.periodEndISO, paydayISO: state.settings.paydayISO, adjustments: state.adjustments, initials: state.settings.initials });
+    return rec;
+  }
+
+  // Confirm & Save: validate first; only save (as "confirmed") if it passes.
+  $("confirmSave").addEventListener("click", function () {
+    var warn = $("confirmWarn");
+    var v = validateDraft();
+    if (!v.ok) {
+      warn.innerHTML = '<div class="banner bad"><b>Not saved — fix these first:</b><ul style="margin:6px 0 0 18px;padding:0">' +
+        v.problems.map(function (p){ return "<li>" + escAttr(p) + "</li>"; }).join("") + "</ul></div>";
+      flash("saveStatus", "Couldn't confirm — see the notes above.");
+      return;
+    }
+    warn.innerHTML = "";
+    var rec = buildPeriodRecord("confirmed");
+    store.save(rec);
+    flash("saveStatus", "Confirmed & saved to History (" + DateUtil.fmtMDY(rec.confirmedDate) + "). Copy the draft and send it.");
+    refreshStepper(); renderHistory();
+  });
+
+  // Export the current period as a JSON backup (separate from confirming).
+  $("exportJson").addEventListener("click", function () {
+    var rec = buildPeriodRecord();
     store.save(rec);
     Storage.download("payperiod_" + state.settings.periodStartISO + ".json", Storage.toJSON(rec));
-    flash("saveStatus", "Saved to history + exported JSON.");
+    flash("saveStatus", "Exported JSON backup.");
     renderHistory();
   });
 
@@ -981,7 +1023,7 @@
           : (short > 0 ? '<span class="pill bad">' + EmailGen.money(short) + (r.carried ? " · carried" : "") + "</span>"
             : (short < 0 ? '<span class="pill warn">overpaid ' + EmailGen.money(-short) + "</span>" : '<span class="pill good">paid in full</span>'));
         var status = r.amountPaid == null ? (r.status || "draft") : (short > 0 ? "short" : "paid");
-        var statusCls = status === "paid" ? "good" : (status === "short" ? "bad" : "warn");
+        var statusCls = (status === "paid" || status === "confirmed") ? "good" : (status === "short" ? "bad" : "warn");
         return "<tr><td>" + DateUtil.fmtRange(r.periodStartISO, r.periodEndISO) + "</td>" +
           "<td>" + DateUtil.fmtMDY(r.paydayISO) + "</td>" +
           '<td><span class="pill ' + statusCls + '">' + status + "</span></td>" +

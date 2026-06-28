@@ -119,7 +119,7 @@
       <p class="help">Set these once. Your initials decide which shifts are claimed; To/From are used on every email.</p>
       <div class="grid g3">
         <div><label>My initials</label><input id="initials" value="FY" maxlength="4"/></div>
-        <div><label>Email “To”</label><input id="toAddr" value="" placeholder="coordinator@example.com"/></div>
+        <div><label>Email “To”</label><input id="toAddr" value="admin@impactcareohio.com"/></div>
         <div><label>Email “From”</label><input id="fromAddr" value="" placeholder="Your Name &lt;you@example.com&gt;"/></div>
       </div>
     </div>
@@ -226,14 +226,17 @@
         <div><label>To</label><input id="dTo" readonly/></div>
       </div>
       <pre class="draft" id="draftBody">Generate from the Review tab once shifts look right.</pre>
+      <div id="confirmWarn"></div>
       <div class="row" style="margin-top:12px">
         <button id="genDraft">Generate / refresh draft</button>
         <button class="ghost" id="copyDraft">Copy to clipboard</button>
-        <button class="ghost" id="savePeriod">Save period &amp; export JSON</button>
+        <button id="confirmSave">Confirm &amp; Save</button>
+        <button class="ghost" id="exportJson">Export JSON</button>
         <span id="saveStatus" class="muted small"></span>
       </div>
+      <p class="help" style="margin-top:8px">“Confirm &amp; Save” validates the email (rates set, nothing left to review, From filled in), then files it under <b>History</b>. On payday, enter what you were paid there — any shortfall carries to your next email as back pay.</p>
     </div>
-    <div class="stepnav"><button class="ghost" data-tab="review">← Review</button><span class="muted small">Copy the draft, then Save above. Done!</span></div>
+    <div class="stepnav"><button class="ghost" data-tab="review">← Review</button><span class="muted small">Copy the draft, then Confirm &amp; Save. Done!</span></div>
   </section>
 
   <!-- AUDIT -->
