@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Brittco Payroll Helper — review-first (Phase 1)</title>
+<!-- Installable app (PWA): manifest, icons, and standalone hints for iOS/Android/desktop -->
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#0b1220" />
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Payroll" />
+<style>
+  :root{
+    --bg:#0f1117; --panel:#171a23; --panel2:#1e222e; --line:#2a2f3d; --ink:#e8eaf0;
+    --muted:#9aa3b5; --accent:#6ea8fe; --good:#41c98b; --warn:#f0b24a; --bad:#ef6a6a;
+    --chip:#242938;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  header{padding:16px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  header h1{font-size:16px;margin:0;font-weight:650}
+  .safe{font-size:12px;color:var(--good);border:1px solid #1f5f44;background:#10241c;padding:3px 9px;border-radius:20px}
+  .wrap{max-width:1080px;margin:0 auto;padding:18px 22px 80px}
+  /* stepper (primary workflow) */
+  nav#nav{margin-bottom:18px}
+  .stepper{display:flex;gap:8px;flex-wrap:wrap}
+  .step{display:flex;align-items:center;gap:9px;padding:9px 15px;cursor:pointer;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:10px}
+  .step:hover{color:var(--ink)}
+  .step.active{color:var(--ink);border-color:var(--accent)}
+  .stepnum{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--chip);color:var(--ink);font-size:12px;font-weight:650;border:1px solid var(--line)}
+  .step.active .stepnum{background:var(--accent);color:#06131f;border-color:var(--accent)}
+  .step.done .stepnum{background:var(--good);color:#06131f;border-color:var(--good)}
+  .manage{display:flex;align-items:center;gap:6px;margin-top:12px;padding-top:10px;border-top:1px solid var(--line);flex-wrap:wrap}
+  .mtab{color:var(--muted);cursor:pointer;font-size:13px;padding:5px 10px;border-radius:7px;border:1px solid transparent}
+  .mtab:hover{color:var(--ink)}
+  .mtab.active{color:var(--ink);background:var(--panel);border-color:var(--line)}
+  .badge{display:inline-block;min-width:18px;text-align:center;background:var(--bad);color:#fff;border-radius:10px;font-size:11px;padding:0 5px;margin-left:2px}
+  .badge.zero{display:none}
+  .stepnav{display:flex;justify-content:space-between;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px}
+  .panel h2{margin:0 0 4px;font-size:14px}
+  .panel p.help{margin:0 0 14px;color:var(--muted);font-size:12.5px}
+  label{display:block;font-size:12px;color:var(--muted);margin:0 0 4px}
+  input,select,textarea{background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:8px 10px;font:inherit;width:100%}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent)}
+  .grid{display:grid;gap:12px}
+  .g2{grid-template-columns:1fr 1fr}
+  .g3{grid-template-columns:1fr 1fr 1fr}
+  .g4{grid-template-columns:repeat(4,1fr)}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  button{background:var(--accent);color:#06131f;border:none;border-radius:8px;padding:9px 14px;font:inherit;font-weight:650;cursor:pointer}
+  button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);font-weight:500}
+  button.sm{padding:5px 9px;font-size:12px}
+  button.ghost.active{background:var(--accent);color:#06131f;border-color:var(--accent);font-weight:650}
+  button.danger{background:transparent;border:1px solid #5a2a2a;color:#f3a0a0}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+  th{color:var(--muted);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em}
+  .drop{border:1.5px dashed var(--line);border-radius:12px;padding:26px;text-align:center;color:var(--muted);cursor:pointer}
+  .drop.hot{border-color:var(--accent);color:var(--ink);background:#141a26}
+  .chip{display:inline-block;background:var(--chip);border:1px solid var(--line);border-radius:6px;padding:1px 7px;font-size:11.5px;margin:1px}
+  .flag{font-size:11.5px;border-radius:6px;padding:2px 7px;display:inline-block;margin:2px 3px 0 0}
+  .flag.review{background:#3a1d1d;color:#f3a0a0;border:1px solid #5a2a2a}
+  .flag.info{background:#1d2a3a;color:#9cc4f5;border:1px solid #2a4257}
+  .muted{color:var(--muted)}
+  .right{text-align:right}
+  .pill{font-size:11px;border-radius:20px;padding:2px 9px;border:1px solid var(--line)}
+  .pill.warn{color:var(--warn);border-color:#5a4a22;background:#241d10}
+  .pill.bad{color:var(--bad);border-color:#5a2a2a;background:#241010}
+  .pill.good{color:var(--good);border-color:#1f5f44;background:#10241c}
+  pre.draft{white-space:pre-wrap;background:#0b0e14;border:1px solid var(--line);border-radius:10px;padding:16px;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+  .banner{border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px}
+  .banner.warn{background:#241d10;border:1px solid #5a4a22;color:#f0d39a}
+  .banner.bad{background:#241010;border:1px solid #5a2a2a;color:#f3b3b3}
+  .banner.good{background:#10241c;border:1px solid #1f5f44;color:#a9e6c9}
+  .hide{display:none}
+  .client-block{border:1px solid var(--line);border-radius:10px;margin-bottom:12px;overflow:hidden}
+  .client-head{background:var(--panel2);padding:10px 12px;display:flex;justify-content:space-between;align-items:center}
+  .small{font-size:12px}
+  .tinput{width:88px}
+  .dinput{width:130px}
+  footer{color:var(--muted);font-size:11.5px;text-align:center;padding:18px}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Brittco Payroll Helper</h1>
+  <span class="safe">Review-first · never sends automatically</span>
+  <span id="headerStatus" class="muted small" style="margin-left:auto;text-align:right"></span>
+</header>
+<div id="modeBanner"></div>
+
+<div class="wrap">
+  <nav id="nav">
+    <div class="stepper">
+      <div class="step active" data-tab="setup"><span class="stepnum">1</span><span>Pay Period</span></div>
+      <div class="step" data-tab="upload"><span class="stepnum">2</span><span>Upload</span></div>
+      <div class="step" data-tab="review"><span class="stepnum">3</span><span>Review</span><span class="badge zero" id="reviewBadge">0</span></div>
+      <div class="step" data-tab="draft"><span class="stepnum">4</span><span>Email</span></div>
+    </div>
+    <div class="manage">
+      <span class="muted small">Manage:</span>
+      <span class="mtab" data-tab="rates">Rule Library</span>
+      <span class="mtab" data-tab="audit">Audit</span>
+      <span class="mtab" data-tab="history">History</span>
+    </div>
+  </nav>
+
+  <!-- SETUP -->
+  <section id="tab-setup">
+    <div class="panel">
+      <h2>You</h2>
+      <p class="help">Set these once. Your initials decide which shifts are claimed; To/From are used on every email.</p>
+      <div class="grid g3">
+        <div><label>My initials</label><input id="initials" value="FY" maxlength="4"/></div>
+        <div><label>Email “To”</label><input id="toAddr" value="" placeholder="coordinator@example.com"/></div>
+        <div><label>Email “From”</label><input id="fromAddr" value="" placeholder="Your Name &lt;you@example.com&gt;"/></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Pay schedule</h2>
+      <p class="help">Pay is every 2 weeks and the app knows your pay days. It shows today, the current pay day, and the exact 2-week period — and on step 3 it tells you which weekly PDFs to pull. Use Prev / Next to move between pay periods.</p>
+      <div id="periodSummary"></div>
+      <div id="periodEditor" class="hide" style="margin-top:12px">
+        <div class="grid g3">
+          <div><label>Pay day (snaps to schedule)</label><input id="payday" type="date"/></div>
+          <div><label>Period start (override)</label><input id="periodStart" type="date"/></div>
+          <div><label>Period end (override)</label><input id="periodEnd" type="date"/></div>
+        </div>
+        <p class="muted small" id="periodDerived" style="margin-top:8px">Pay day auto-fills the period. Override the start or end only for an unusual period (e.g. one that includes the leading Sunday).</p>
+        <div class="row" style="margin-top:8px">
+          <button class="ghost sm" id="periodReset">Reset to auto</button>
+          <button class="ghost sm" id="periodDone">Done</button>
+        </div>
+      </div>
+    </div>
+    <div class="stepnav"><span></span><button data-tab="upload">Next: Upload →</button></div>
+  </section>
+
+  <!-- RULE LIBRARY -->
+  <section id="tab-rates" class="hide">
+    <div class="panel">
+      <h2>Client Rule Library <span class="muted small" style="font-weight:400" id="ruleModeNote"></span></h2>
+      <div class="row" style="gap:6px;margin-bottom:8px;align-items:center">
+        <span class="muted small">Mode:</span>
+        <button class="ghost sm" id="modeNormal">Normal Payroll</button>
+        <button class="ghost sm" id="modeDiscovery">Rule Discovery</button>
+      </div>
+      <p class="help">Each client has a version-controlled rule profile with a confidence score and full history. <b>Normal Payroll Mode</b> uses only the approved active version and is read-only — rule changes are made in <b>Rule Discovery Mode</b> and require your explicit approval. Versions are never overwritten. A client with no approved rate is flagged; pay is never invented.</p>
+      <div id="discoveryPanel" class="hide"></div>
+      <div id="ruleLibBody"></div>
+      <div class="row" style="margin-top:12px;flex-wrap:wrap;gap:6px">
+        <button class="ghost sm" id="addRate">+ Add client</button>
+        <button class="ghost sm" id="importRatesBtn">Import starter…</button>
+        <button class="ghost sm" id="exportRates">Export starter</button>
+        <button class="ghost sm" id="resetRates">Clear all</button>
+        <input type="file" id="importRates" accept="application/json,.json" hidden />
+        <span class="muted small">Night rate is fixed at 11pm&ndash;7am. Add each client and set their rate.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- UPLOAD -->
+  <section id="tab-upload" class="hide">
+    <div class="panel">
+      <h2>Upload Brittco attendance PDFs</h2>
+      <p class="help">Two formats work and are auto-detected. <b>Recommended: the "Review Attendance" report</b> — one file, filtered to your name and date range, listing each shift directly (sturdier). The older weekly grid export (3 Sun–Sat files) also works. The tool keeps only shifts dated inside the period.</p>
+      <div id="uploadDates"></div>
+      <div class="drop" id="drop">
+        <div style="font-size:15px;margin-bottom:6px">Drop PDFs here or click to choose</div>
+        <div class="muted small">Parsing happens locally in your browser. Files are not uploaded anywhere.</div>
+        <input id="fileInput" type="file" accept="application/pdf" multiple class="hide"/>
+      </div>
+      <div id="fileList" style="margin-top:12px"></div>
+      <div class="row" style="margin-top:12px">
+        <button id="parseBtn" disabled>Parse &amp; extract FY shifts</button>
+        <button class="ghost" id="clearBtn">Clear files &amp; results</button>
+        <span id="parseStatus" class="muted small"></span>
+      </div>
+    </div>
+    <div class="stepnav"><button class="ghost" data-tab="setup">← Pay Period</button><button data-tab="review">Review →</button></div>
+  </section>
+
+  <!-- REVIEW -->
+  <section id="tab-review" class="hide">
+    <div class="panel">
+      <h2>Review extracted shifts</h2>
+      <p class="help">This is the safety step. Edit or exclude anything before generating the email. Times shown are rounded down to the whole hour (your rule). Cross-midnight shifts stay under their start date.</p>
+      <div id="reviewSummary"></div>
+      <div id="reviewBody"></div>
+      <div class="row" style="margin-top:8px">
+        <button class="ghost sm" id="addShift">+ Add a shift manually</button>
+        <button class="ghost sm" id="recalcBtn">Recalculate</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Back pay &amp; adjustments</h2>
+      <p class="help">On payday, record what you were actually paid for a past period on the <b>History</b> tab. If you were underpaid, the shortfall shows up here so you can add it as back pay to <i>this</i> period. You can also add a manual adjustment (use a negative amount for a deduction). Adjustments are added into TOTAL PAY, each on its own line in the email.</p>
+      <div id="openShortfalls"></div>
+      <div id="adjList"></div>
+      <div class="row" style="margin-top:10px">
+        <input id="adjLabel" placeholder="Label (e.g. BACK PAY (from 5/18/26-5/31/26))" style="max-width:340px"/>
+        <input id="adjAmount" type="number" step="0.01" placeholder="Amount $" style="max-width:130px"/>
+        <button class="ghost sm" id="addAdj">+ Add adjustment</button>
+      </div>
+    </div>
+    <div class="stepnav"><button class="ghost" data-tab="upload">← Upload</button><button data-tab="draft">Next: Email →</button></div>
+  </section>
+
+  <!-- DRAFT -->
+  <section id="tab-draft" class="hide">
+    <div class="panel">
+      <h2>Generated email draft</h2>
+      <p class="help">Subject is generated automatically from the pay period; To/From come from your Setup tab — both fill in by themselves. Review, then copy into your mail client and send it yourself. This tool never sends email.</p>
+      <div id="draftWarn"></div>
+      <div class="grid g2" style="margin-bottom:12px">
+        <div><label>Subject</label><input id="dSubject" readonly/></div>
+        <div><label>To</label><input id="dTo" readonly/></div>
+      </div>
+      <pre class="draft" id="draftBody">Generate from the Review tab once shifts look right.</pre>
+      <div class="row" style="margin-top:12px">
+        <button id="genDraft">Generate / refresh draft</button>
+        <button class="ghost" id="copyDraft">Copy to clipboard</button>
+        <button class="ghost" id="savePeriod">Save period &amp; export JSON</button>
+        <span id="saveStatus" class="muted small"></span>
+      </div>
+    </div>
+    <div class="stepnav"><button class="ghost" data-tab="review">← Review</button><span class="muted small">Copy the draft, then Save above. Done!</span></div>
+  </section>
+
+  <!-- AUDIT -->
+  <section id="tab-audit" class="hide">
+    <div class="panel">
+      <h2>Payroll audit report</h2>
+      <p class="help">Full audit trail for the current period: every shift's raw clock time → rounded whole hours → regular/overnight split → rate applied → dollars, plus which client rule version was used. Generate once the Review tab looks right.</p>
+      <div class="row" style="margin-bottom:10px">
+        <button id="genAudit">Generate audit report</button>
+        <button class="ghost" id="copyAudit">Copy</button>
+        <span id="auditStatus" class="muted small"></span>
+      </div>
+      <pre class="draft" id="auditBody">Generate the audit report for the current period.</pre>
+    </div>
+  </section>
+
+  <!-- HISTORY -->
+  <section id="tab-history" class="hide">
+    <div class="panel">
+      <h2>Past pay periods &amp; reconciliation</h2>
+      <p class="help">Saved periods carry a full rule-version snapshot so reopening reproduces the exact numbers. On pay day, enter the amount actually paid to reconcile it against the calculated total — any shortfall flows to the Back-Pay Ledger below. Versions and history are never overwritten.</p>
+      <div id="historyBody"><p class="muted">No saved periods yet.</p></div>
+    </div>
+    <div class="panel">
+      <h2>Back-Pay Ledger</h2>
+      <p class="help">Open shortfalls from reconciled periods. Carry one into the current period as back pay from the Review tab; mark settled once paid.</p>
+      <div id="ledgerBody"><p class="muted small">No ledger entries.</p></div>
+    </div>
+  </section>
+</div>
+
+<footer>Brittco Payroll Helper · deterministic · review-first · phase-1 prototype. Core logic lives in <code>/src</code> and is reused unchanged by the test suite.</footer>
+
+<!-- pdf.js (text extraction) — vendored locally, no internet required -->
+<script src="vendor/pdf.min.js"></script>
+<!-- load the worker as a normal script so it registers the pdfjsWorker global.
+     pdf.js then runs it ON THE MAIN THREAD (no Worker process, no blob, no server),
+     which works when opened directly or inside an embedded preview pane. -->
+<script src="vendor/pdf.worker.min.js"></script>
+<!-- core logic modules (same files the Node tests use) -->
+<script src="src/normalize.js"></script>
+<script src="src/dates.js"></script>
+<script src="src/rates.js"></script>
+<script src="src/rulelib.js"></script>
+<script src="src/payroll.js"></script>
+<script src="src/review.js"></script>
+<script src="src/email.js"></script>
+<script src="src/audit.js"></script>
+<script src="src/reconcile.js"></script>
+<script src="src/discovery.js"></script>
+<script src="src/storage.js"></script>
+<script src="src/parser.js"></script>
+<script src="app.js"></script>
+<script>
+  /* Register the offline service worker. Only runs in a secure context
+     (https:// or http://localhost) — silently skipped on file://, where the
+     app still works, just without offline install. */
+  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").catch(function () {/* offline install unavailable; app still works */});
+    });
+  }
+</script>
+</body>
+</html>
