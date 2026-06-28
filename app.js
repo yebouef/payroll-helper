@@ -53,7 +53,7 @@
   // ---- persistence helpers ----
   function loadSettings() {
     var d = {
-      initials: "FY",
+      initials: "", // each user sets their own initials in Setup
       payAnchorISO: "2026-06-26", // a known pay day; pay is every 2 weeks from here
       paydayISO: null,            // current pay day (derived from schedule on boot)
       periodStartISO: "2026-06-01",
@@ -148,7 +148,7 @@
     if (!setupWired) { // attach static listeners once
       setupWired = true;
       $("initials").addEventListener("change", function () {
-        state.settings.initials = this.value.trim().toUpperCase() || "FY";
+        state.settings.initials = this.value.trim().toUpperCase();
         this.value = state.settings.initials; saveSettings(); recompute();
       });
       $("payday").addEventListener("change", function () { if (this.value) setPayday(this.value, true); });
@@ -221,7 +221,7 @@
     el.innerHTML = [
       '<div><b>Pay period</b> (what you&rsquo;re paid for): <b>' + range + "</b> &mdash; this never changes.</div>",
       '<div style="margin-top:8px;font-size:15px"><b>Pull from Brittco &mdash; Start <span style="color:var(--good)">' + startMDY + " (Mon)</span> &rarr; End <span style=\"color:var(--good)\">" + endMDY + ' (Mon)</span></b></div>',
-      '<div class="small" style="margin-top:6px"><b>How:</b> open <b>Review Attendance</b>, set <b>Staff = ' + escAttr(state.settings.initials) + "</b>, <b>Start Date " + startMDY + "</b>, <b>End Date " + endMDY + "</b>, then upload that report.</div>",
+      '<div class="small" style="margin-top:6px"><b>How:</b> open <b>Review Attendance</b>, set <b>Staff = your name</b>, <b>Start Date ' + startMDY + "</b>, <b>End Date " + endMDY + "</b>, then upload that report.</div>",
       '<div class="small" style="margin-top:6px;border-left:3px solid var(--warn);padding-left:8px"><b>Upload every page.</b> If the report shows &ldquo;Showing 1&ndash;25 of N&rdquo;, it spans multiple pages &mdash; click through each page (&raquo;) and upload them all. Your last dates are on the final page; the app warns you if any page is missing.</div>',
       '<div class="small" style="margin-top:6px;border-left:3px solid var(--warn);padding-left:8px"><b>Why end on the Monday, not the Sunday?</b> Your last Sunday-night shift runs into Monday morning; ending on the Sunday cuts it off and undercounts you. The app counts any Monday hours <b>before 8:00am</b> under the previous Sunday, so they stay in this pay period.</div>',
       '<details style="margin-top:8px"><summary class="small">Or use the weekly grid export (3 Sun&ndash;Sat files)</summary><ul style="margin:6px 0 0 18px;padding:0">' + items + "</ul></details>"
@@ -578,7 +578,7 @@
     parts.push('<span class="pill ' + (reviewFlags ? "bad" : "good") + '">' + reviewFlags + " items need review</span>");
     parts.push('<span class="pill">' + infoFlags + " info notes</span>");
     if (unconfigured) parts.push('<span class="pill warn">' + unconfigured + " unconfigured-rate shift(s)</span>");
-    parts.push('<span class="pill">' + inc.length + " FY shifts · " + per.grandHours + " hrs · " + EmailGen.money(per.grandPay) + "</span>");
+    parts.push('<span class="pill">' + inc.length + " of my shifts · " + per.grandHours + " hrs · " + EmailGen.money(per.grandPay) + "</span>");
     parts.push("</div>");
     if (state.suggestion) {
       // gross mismatch: files belong to a different pay period — offer one-click switch
@@ -599,11 +599,11 @@
           var ds = byClient[n].sort();
           return n + " — " + ds.length + (ds.length <= 6 ? " (" + ds.join(", ") + ")" : " shifts");
         });
-        parts.push('<div class="banner warn">' + oop.length + " FY shift(s) fall outside this period and were left out: " +
+        parts.push('<div class="banner warn">' + oop.length + " of my shift(s) fall outside this period and were left out: " +
           lines.join("; ") + ". If the period is wrong, fix the pay day on Setup.</div>");
       }
     }
-    if (claim.omittedClients.length) parts.push('<div class="banner warn">Omitted (no FY this period): ' + claim.omittedClients.join(", ") + "</div>");
+    if (claim.omittedClients.length) parts.push('<div class="banner warn">Omitted (none of my shifts this period): ' + claim.omittedClients.join(", ") + "</div>");
     state.warnings.forEach(function (w){ parts.push('<div class="banner bad">Parser: ' + w.message + "</div>"); });
     sum.innerHTML = parts.join("");
     if (state.suggestion) {
@@ -621,7 +621,7 @@
     // grouped by client
     var body = $("reviewBody");
     if (!inc.length && !(state.claim && state.claim.claimed.length)) {
-      body.innerHTML = '<p class="muted">No FY shifts yet. Upload &amp; parse PDFs, or add a shift manually.</p>'; return;
+      body.innerHTML = '<p class="muted">No shifts yet. Upload &amp; parse PDFs, or add a shift manually.</p>'; return;
     }
     var groups = {};
     var order = [];
@@ -735,11 +735,12 @@
     var osEl = $("openShortfalls");
     if (osEl) {
       if (os.length) {
-        osEl.innerHTML = '<div class="banner warn" style="margin-bottom:6px">Unsettled shortfalls from past periods — add as back pay to this period:</div>' +
+        osEl.innerHTML = '<div class="banner warn" style="margin-bottom:6px">You were short-paid on a past period. The back-pay line below is filled in for you — click <b>+ Add adjustment</b> to include it in this email (or leave it out):</div>' +
           os.map(function (r) {
-            return '<div class="row" style="margin:4px 0"><span class="pill bad">' +
-              DateUtil.fmtRange(r.periodStartISO, r.periodEndISO) + " short " + EmailGen.money(r.shortfall) + "</span>" +
-              '<button class="ghost sm" data-carry="' + r.id + '">+ Add as back pay</button></div>';
+            var label = "BACK PAY (from " + DateUtil.fmtRange(r.periodStartISO, r.periodEndISO) + ")";
+            return '<div class="row" style="margin:4px 0;gap:8px;align-items:center"><span class="pill bad">' +
+              escHtml(label) + " — " + EmailGen.money(r.shortfall) + "</span>" +
+              '<button class="ghost sm" data-carry="' + r.id + '">+ Add adjustment</button></div>';
           }).join("");
         osEl.querySelectorAll("[data-carry]").forEach(function (b) {
           b.addEventListener("click", function () { carryShortfall(this.dataset.carry); });
@@ -804,12 +805,12 @@
       adjustments: state.adjustments,
     });
     state.draft = draft;
-    // Subject + To are always auto-filled from the period and Setup tab.
-    $("dSubject").value = draft.subject;
-    $("dTo").value = draft.to;
+    // The whole email — To, Subject, and body — goes in the copyable box so you can
+    // select all and paste it straight into your mail client.
+    var header = "To: " + (draft.to || "") + "\nSubject: " + draft.subject + "\n\n";
     $("draftBody").textContent = (inc.length || state.adjustments.length)
-      ? draft.body
-      : "No FY shifts selected yet.\n\nUpload & parse your PDFs, confirm them on the Review tab, then this draft fills in automatically.\n(Subject and To above are already set from your Setup tab.)";
+      ? header + draft.body
+      : "No shifts selected yet.\n\nUpload & parse your PDFs, confirm them on the Review tab, then this draft fills in automatically.";
 
     var warn = $("draftWarn");
     var reviewFlags = 0; inc.forEach(function (s){ s.flags.forEach(function (f){ if (f.level==="review") reviewFlags++; }); });
@@ -822,8 +823,8 @@
   $("genDraft").addEventListener("click", function () { buildDraft(); });
   $("copyDraft").addEventListener("click", function () {
     if (!state.draft) buildDraft();
-    var text = "Subject: " + state.draft.subject + "\nTo: " + state.draft.to + "\nFrom: " + state.draft.from + "\n(high importance)\n\n" + state.draft.body;
-    navigator.clipboard.writeText(text).then(function () { flash("saveStatus", "Copied draft to clipboard."); });
+    // copy exactly what's in the box (To + Subject + body)
+    navigator.clipboard.writeText($("draftBody").textContent).then(function () { flash("saveStatus", "Copied the whole email (To, Subject, body)."); });
   });
 
   // ---- validate the draft before it can be confirmed/sent ----
@@ -1075,7 +1076,7 @@
     state.periodNote = null;
     state.periodSet = true;
     saveSettings(); bindSetup(); recompute(); renderAdjustments();
-    if (r.draft) { state.draft = r.draft; $("dSubject").value = r.draft.subject; $("dTo").value = r.draft.to; $("draftBody").textContent = r.draft.body; }
+    if (r.draft) { state.draft = r.draft; $("draftBody").textContent = "To: " + (r.draft.to || "") + "\nSubject: " + r.draft.subject + "\n\n" + r.draft.body; }
     goTab("review");
     flash("saveStatus", "Reopened " + DateUtil.fmtRange(r.periodStartISO, r.periodEndISO));
   }
