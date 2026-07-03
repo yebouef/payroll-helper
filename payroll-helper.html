@@ -252,6 +252,16 @@
   <!-- HISTORY -->
   <section id="tab-history" class="hide">
     <div class="panel">
+      <h2>Backup &amp; restore</h2>
+      <p class="help">Your data lives only in this browser. <b>Back up</b> saves everything — settings, clients &amp; rates, saved periods, and the ledger — to one file on your device. <b>Restore</b> loads it back on this or any device. Do this after each payday so nothing is ever lost.</p>
+      <div class="row">
+        <button id="backupAll">⬇ Back up all data</button>
+        <button class="ghost" id="restoreAllBtn">⬆ Restore from file…</button>
+        <input type="file" id="restoreAll" accept="application/json,.json" hidden />
+        <span id="backupStatus" class="muted small"></span>
+      </div>
+    </div>
+    <div class="panel">
       <h2>Past pay periods &amp; reconciliation</h2>
       <p class="help">Saved periods carry a full rule-version snapshot so reopening reproduces the exact numbers. On pay day, enter the amount actually paid to reconcile it against the calculated total — any shortfall flows to the Back-Pay Ledger below. Versions and history are never overwritten.</p>
       <div id="historyBody"><p class="muted">No saved periods yet.</p></div>

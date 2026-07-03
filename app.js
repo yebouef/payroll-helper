@@ -903,6 +903,53 @@
     renderHistory();
   });
 
+  // ---- full backup / restore: ALL data (settings, clients, history, ledger) -> one file ----
+  function buildBackup() {
+    return {
+      app: "payroll-helper", schema: 1, exportedAt: new Date().toISOString(),
+      settings: state.settings,
+      ruleLib: state.ruleLib,
+      ledger: state.ledger,
+      history: store.list(),
+    };
+  }
+  $("backupAll").addEventListener("click", function () {
+    var name = "payroll-backup-" + todayISO() + ".json";
+    Storage.download(name, JSON.stringify(buildBackup(), null, 2));
+    flash("backupStatus", "Saved everything to " + name + " — keep this file safe.");
+  });
+  $("restoreAllBtn").addEventListener("click", function () { $("restoreAll").click(); });
+  $("restoreAll").addEventListener("change", function () {
+    var f = this.files && this.files[0]; if (!f) return;
+    var self = this, r = new FileReader();
+    r.onload = function () {
+      try {
+        var b = JSON.parse(r.result);
+        if (!b || b.app !== "payroll-helper" || !b.settings) throw new Error("not a backup");
+        if (!window.confirm("Restore REPLACES all data currently on this device with the backup. Continue?")) { self.value = ""; return; }
+        LS.set(SETTINGS_KEY, JSON.stringify(b.settings));
+        LS.set(RULELIB_KEY, JSON.stringify(b.ruleLib || { schema: 1, clients: [] }));
+        LS.set(LEDGER_KEY, JSON.stringify(b.ledger || []));
+        store.clear();
+        (b.history || []).forEach(function (rec) { store.save(rec); });
+        // reload state from the restored storage and re-render everything
+        state.settings = loadSettings();
+        state.ruleLib = loadRuleLib();
+        state.ledger = loadLedger();
+        state.adjustments = [];
+        refreshRates();
+        bindSetup(); renderPeriodSummary(); renderRequiredWeeks(); renderRates();
+        recompute(); renderHistory(); renderLedger(); renderAdjustments(); updateHeaderStatus();
+        flash("backupStatus", "Restored " + (b.history || []).length + " saved period(s) and " +
+          ((b.ruleLib && b.ruleLib.clients) ? b.ruleLib.clients.length : 0) + " client(s).");
+      } catch (e) {
+        flash("backupStatus", "That file isn't a valid backup (expected a payroll-backup .json).");
+      }
+      self.value = "";
+    };
+    r.readAsText(f);
+  });
+
   // ---- mode switch (Normal Payroll / Rule Discovery) ----
   function setMode(m) {
     state.mode = m;

@@ -166,28 +166,63 @@
       if (m) reportTotal = Math.max(reportTotal || 0, +m[1]);
     });
 
+    // Columns vary between Brittco reports (some add a "Group" or "Client(s)"
+    // column), so we DETECT columns from the header row instead of hardcoding x's.
+    // The client is read from the "Client(s)" column when present, else "Location"
+    // — never the "Staff" column (which caused staff names to show as the client).
+    function labelOf(t) {
+      var s = String(t).replace(/[^A-Za-z]/g, "").toLowerCase();
+      if (s.indexOf("date") === 0) return "date";
+      if (s.indexOf("group") === 0) return "group";
+      if (s.indexOf("client") === 0) return "client";
+      if (s.indexOf("staff") === 0) return "staff";
+      if (s.indexOf("location") === 0) return "location";
+      if (s.indexOf("service") === 0) return "service";
+      if (s.indexOf("note") === 0) return "note";
+      return null;
+    }
+    var colX = {};
+    for (var h = 0; h < lines.length; h++) {
+      var labs = {};
+      lines[h].items.forEach(function (it) { var l = labelOf(it.text); if (l && labs[l] == null) labs[l] = it.x; });
+      if (labs.date != null && labs.staff != null && (labs.client != null || labs.location != null)) { colX = labs; break; }
+    }
+    // x-range of the client column = midpoints to its neighbours (robust to shifts)
+    function colRange(key) {
+      var order = ["date", "group", "client", "staff", "location", "service", "note"];
+      var xs = order.filter(function (k) { return colX[k] != null; }).map(function (k) { return { k: k, x: colX[k] }; });
+      for (var ci = 0; ci < xs.length; ci++) {
+        if (xs[ci].k === key) {
+          var left = ci > 0 ? (xs[ci - 1].x + xs[ci].x) / 2 : xs[ci].x - 60;
+          var right = ci < xs.length - 1 ? (xs[ci].x + xs[ci + 1].x) / 2 : xs[ci].x + 130;
+          return [left, right];
+        }
+      }
+      return null;
+    }
+    var clientRange = colRange("client") || colRange("location") || [300, 525];
+
+    // Each shift is a RECORD spanning from a date row to the next date row (cells
+    // wrap onto continuation lines), so gather client tokens across the whole record.
     for (var i = 0; i < lines.length; i++) {
       var first = lines[i].items[0];
-      if (!first || first.x > 90) continue;
+      if (!first || first.x > 110) continue;
       var dm = DATE3_RE.exec(first.text);
       if (!dm) continue;
+      var recEnd = i + 1;
+      while (recEnd < lines.length && !(lines[recEnd].items[0] && lines[recEnd].items[0].x <= 110 && DATE3_RE.test(lines[recEnd].items[0].text))) recEnd++;
 
-      // client = tokens in the Location column (between Staff ~243 and Service ~536)
-      var locTokens = lines[i].items.filter(function (w) { return w.x >= 300 && w.x < 525; });
-      if (!locTokens.length) continue;
-      var resolved = resolveHeader(locTokens, ratesList);
-
-      // time-range on a following line (one token like "7:00am-8:00am", or split)
-      var startRaw = null, endRaw = null;
-      for (var j = i + 1; j < Math.min(i + 3, lines.length); j++) {
-        var leftTimes = lines[j].items.filter(function (w) { return w.x < 110; });
-        var joined = leftTimes.map(function (w) { return w.text; }).join("");
-        var mr = TIMERANGE_RE.exec(joined);
-        if (mr) { startRaw = mr[1]; endRaw = mr[2]; break; }
-        // stop if we hit the next date row
-        if (lines[j].items[0] && DATE3_RE.test(lines[j].items[0].text)) break;
+      var clientToks = [], startRaw = null, endRaw = null;
+      for (var j = i; j < recEnd; j++) {
+        lines[j].items.forEach(function (w) { if (w.x >= clientRange[0] && w.x < clientRange[1]) clientToks.push(w); });
+        if (!startRaw) {
+          var joined = lines[j].items.filter(function (w) { return w.x < 130; }).map(function (w) { return w.text; }).join("");
+          var mr = TIMERANGE_RE.exec(joined);
+          if (mr) { startRaw = mr[1]; endRaw = mr[2]; }
+        }
       }
-      if (!startRaw) continue;
+      if (!startRaw || !clientToks.length) continue;
+      var resolved = resolveHeader(clientToks, ratesList);
 
       var y = 2000 + parseInt(dm[3], 10);
       var dateISO = y + "-" + pad(+dm[1]) + "-" + pad(+dm[2]);
