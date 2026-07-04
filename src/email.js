@@ -133,10 +133,14 @@
     var adjTotal = adjustments.reduce(function (s, a) { return s + (Number(a.amount) || 0); }, 0);
     var grand = period.grandPay + adjTotal;
 
-    // trim trailing blanks, then adjustment lines, then the inclusive total
+    // trim trailing blanks, then the pay breakdown + inclusive total
     while (lines.length && lines[lines.length - 1] === "") lines.pop();
     lines.push("");
-    adjustments.forEach(function (a) { lines.push(a.label + ": " + money(Number(a.amount) || 0)); });
+    // When there's back pay/adjustments, show the breakdown so TOTAL = this period + back pay.
+    if (adjustments.length) {
+      lines.push("PAY THIS PERIOD: " + money(period.grandPay));
+      adjustments.forEach(function (a) { lines.push(a.label + ": " + money(Number(a.amount) || 0)); });
+    }
     lines.push("TOTAL PAY: " + money(grand));
 
     // wrap with a light greeting + sign-off so it reads like an email (editable via params)
