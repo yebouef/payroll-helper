@@ -53,7 +53,8 @@
   // ---- persistence helpers ----
   function loadSettings() {
     var d = {
-      initials: "", // each user sets their own initials in Setup
+      initials: "", // used only for the older grid export
+      staffName: "", // your name as it appears in Brittco (used to claim your shifts)
       payAnchorISO: "2026-06-26", // a known pay day; pay is every 2 weeks from here
       paydayISO: null,            // current pay day (derived from schedule on boot)
       periodStartISO: "2026-06-01",
@@ -138,6 +139,7 @@
   var $ = function (id) { return document.getElementById(id); };
   var setupWired = false;
   function bindSetup() {
+    $("staffName").value = state.settings.staffName || "";
     $("initials").value = state.settings.initials;
     $("payday").value = state.settings.paydayISO || "";
     $("periodStart").value = state.settings.periodStartISO || "";
@@ -147,6 +149,10 @@
 
     if (!setupWired) { // attach static listeners once
       setupWired = true;
+      $("staffName").addEventListener("change", function () {
+        state.settings.staffName = this.value.trim();
+        saveSettings(); recompute();
+      });
       $("initials").addEventListener("change", function () {
         state.settings.initials = this.value.trim().toUpperCase();
         this.value = state.settings.initials; saveSettings(); recompute();
@@ -489,6 +495,7 @@
     var t = table();
     var claim = Review.claim(activeShifts(), {
       initials: state.settings.initials,
+      staffName: state.settings.staffName,
       startISO: state.settings.periodStartISO,
       endISO: state.settings.periodEndISO,
       table: t,

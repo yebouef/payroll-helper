@@ -114,6 +114,22 @@
     });
   }
 
+  function normName(s) { return String(s || "").toLowerCase().replace(/[^a-z]/g, ""); }
+
+  // Does this shift belong to the user? "Review Attendance" list shifts match by
+  // NAME — the user's name appearing ANYWHERE in the Staff column counts, so shifts
+  // shared by two staff still count for each. Grid shifts fall back to initials.
+  // If no name is set, trust the report's own staff filter (claim everything).
+  function claimsShift(shift, opts) {
+    if (shift.staffText != null) {
+      var want = normName(opts.staffName);
+      if (!want) return true;
+      var have = normName(shift.staffText);
+      return have.indexOf(want) !== -1 || want.indexOf(have) !== -1;
+    }
+    return staffHasInitials(shift.staff, opts.initials);
+  }
+
   // yyyy-mm-dd string compare works lexicographically.
   function inPeriod(dateISO, startISO, endISO) {
     return dateISO >= startISO && dateISO <= endISO;
@@ -140,14 +156,19 @@
         flags.push({ level: "info", code: "cross_midnight", message: "Crosses midnight — kept under start date " + shift.dateISO + "." });
       }
     }
-    // staff token sanity (the FY match is exact, but warn on malformed neighbors)
-    (shift.staff || []).forEach(function (t) {
-      if (!INITIAL_RE.test(String(t))) {
-        flags.push({ level: "review", code: "unclear_initials", message: "Unusual staff marking '" + t + "' in this cell." });
+    // staff sanity. Grid cells hold initials (warn on odd tokens); list rows hold
+    // full names (no initials check — just confirm a name was read).
+    if (shift.staffText == null) {
+      (shift.staff || []).forEach(function (t) {
+        if (!INITIAL_RE.test(String(t))) {
+          flags.push({ level: "review", code: "unclear_initials", message: "Unusual staff marking '" + t + "' in this cell." });
+        }
+      });
+      if (!shift.staff || shift.staff.length === 0) {
+        flags.push({ level: "review", code: "missing_staff", message: "No staff initials parsed for this cell." });
       }
-    });
-    if (!shift.staff || shift.staff.length === 0) {
-      flags.push({ level: "review", code: "missing_staff", message: "No staff initials parsed for this cell." });
+    } else if (!shift.staffText) {
+      flags.push({ level: "review", code: "missing_staff", message: "No staff name parsed for this shift." });
     }
     // rate configured? (a row with no real $/hr counts as unconfigured)
     if (!rateConfigured(rate)) {
@@ -191,11 +212,11 @@
 
     (allShifts || []).forEach(function (s) {
       if (startISO && endISO && !inPeriod(s.dateISO, startISO, endISO)) {
-        if (staffHasInitials(s.staff, initials)) outOfPeriodFY.push(s); // surface, don't silently drop
+        if (claimsShift(s, opts)) outOfPeriodFY.push(s); // surface, don't silently drop
         return; // out of period
       }
       clientsSeen[s.clientName] = true;
-      if (!staffHasInitials(s.staff, initials)) return; // only FY
+      if (!claimsShift(s, opts)) return; // only the user's shifts
       clientsWithFY[s.clientName] = true;
 
       var sig = [s.clientKey || s.clientName, s.dateISO, s.startRaw, s.endRaw, (s.staff || []).join("+")].join("|");
@@ -204,6 +225,11 @@
 
       var rate = table ? table.resolve(s.clientName, s.clientKey) : null;
       var withFlags = Object.assign({}, s, { flags: flagsForShift(s, rate), rate: rateConfigured(rate) ? rate.client_key : null });
+      // Note co-workers on a shared shift (the Staff column lists more than the user).
+      if (s.staffText && opts.staffName) {
+        var rem = normName(s.staffText).replace(normName(opts.staffName), "");
+        if (rem.length > 3) withFlags.flags.push({ level: "info", code: "shared_shift", message: "Shared shift — Brittco lists: " + s.staffText });
+      }
       claimed.push(withFlags);
     });
 

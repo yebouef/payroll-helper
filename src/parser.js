@@ -201,6 +201,7 @@
       return null;
     }
     var clientRange = colRange("client") || colRange("location") || [300, 525];
+    var staffRange = colRange("staff"); // to read the actual staff name(s) on each shift
 
     // Each shift is a RECORD spanning from a date row to the next date row (cells
     // wrap onto continuation lines), so gather client tokens across the whole record.
@@ -212,9 +213,12 @@
       var recEnd = i + 1;
       while (recEnd < lines.length && !(lines[recEnd].items[0] && lines[recEnd].items[0].x <= 110 && DATE3_RE.test(lines[recEnd].items[0].text))) recEnd++;
 
-      var clientToks = [], startRaw = null, endRaw = null;
+      var clientToks = [], staffToks = [], startRaw = null, endRaw = null;
       for (var j = i; j < recEnd; j++) {
-        lines[j].items.forEach(function (w) { if (w.x >= clientRange[0] && w.x < clientRange[1]) clientToks.push(w); });
+        lines[j].items.forEach(function (w) {
+          if (w.x >= clientRange[0] && w.x < clientRange[1]) clientToks.push(w);
+          if (staffRange && w.x >= staffRange[0] && w.x < staffRange[1]) staffToks.push(w);
+        });
         if (!startRaw) {
           var joined = lines[j].items.filter(function (w) { return w.x < 130; }).map(function (w) { return w.text; }).join("");
           var mr = TIMERANGE_RE.exec(joined);
@@ -223,6 +227,11 @@
       }
       if (!startRaw || !clientToks.length) continue;
       var resolved = resolveHeader(clientToks, ratesList);
+
+      // Staff name(s) on the shift — the real text from the Staff column (may list
+      // more than one person). Matching to the user is by NAME, done in review.js.
+      staffToks.sort(function (a, b) { return a.top - b.top || a.x - b.x; });
+      var staffText = staffToks.map(function (w) { return w.text; }).join(" ").replace(/\s+/g, " ").trim();
 
       var y = 2000 + parseInt(dm[3], 10);
       var dateISO = y + "-" + pad(+dm[1]) + "-" + pad(+dm[2]);
@@ -234,8 +243,9 @@
         dateISO: dateISO,
         startRaw: startRaw,
         endRaw: endRaw,
-        staff: [initials], // report is pre-filtered to this person
-        staffRaw: [initials],
+        staff: staffText ? [staffText] : [initials],
+        staffText: staffText || null, // raw Staff-column text; null when unavailable
+        staffRaw: staffText ? [staffText] : [initials],
         source: opts.source || null,
         parseFlags: [],
       });

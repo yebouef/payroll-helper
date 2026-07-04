@@ -116,11 +116,14 @@
   <section id="tab-setup">
     <div class="panel">
       <h2>You</h2>
-      <p class="help">Set these once. Your initials decide which shifts are claimed; To/From are used on every email.</p>
+      <p class="help">Set these once. Your <b>name</b> decides which shifts are claimed — enter it exactly as it appears in Brittco (e.g. “Franck Yeboue”). A shift counts whenever your name is in its Staff column, even if a coworker is listed too. To/From are used on every email.</p>
       <div class="grid g3">
-        <div><label>My initials</label><input id="initials" value="" placeholder="e.g. AB" maxlength="4"/></div>
+        <div><label>My name (as in Brittco)</label><input id="staffName" value="" placeholder="e.g. Franck Yeboue"/></div>
         <div><label>Email “To”</label><input id="toAddr" value="admin@impactcareohio.com"/></div>
         <div><label>Email “From”</label><input id="fromAddr" value="" placeholder="Your Name &lt;you@example.com&gt;"/></div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <div style="max-width:220px"><label>Initials (older grid export only)</label><input id="initials" value="" placeholder="e.g. FY" maxlength="4"/></div>
       </div>
     </div>
 

@@ -1,6 +1,6 @@
 /* Payroll Helper service worker — precache the app shell so it works fully offline.
  * Bump CACHE when any app file changes to force a refresh on next launch. */
-var CACHE = "payroll-helper-v2";
+var CACHE = "payroll-helper-v3";
 var ASSETS = [
   "./",
   "./index.html",
