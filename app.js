@@ -264,7 +264,8 @@
         '<div class="client-head"><div><b>' + escAttr(c.client_name) + '</b> ' +
           '<span class="pill">' + (configured ? "v" + av.version : "draft") + '</span> ' +
           '<span class="pill ' + confCls + '">' + conf + '% confidence</span></div>' +
-          '<div class="small">' + rateSummary + '</div></div>' +
+          '<div class="small" style="display:flex;gap:10px;align-items:center">' + rateSummary +
+            '<button class="danger sm" data-rm-client="' + escAttr(c.client_key) + '" title="Remove this client">Remove</button></div></div>' +
         '<div style="padding:8px 12px">' +
           '<details style="margin-bottom:6px"><summary class="small muted">version history (' + (c.versions || []).length + ')</summary><div class="small muted" style="margin-top:4px">' + history + '</div></details>' +
           form +
@@ -291,6 +292,17 @@
   }
 
   function wireRuleForms() {
+    document.querySelectorAll("#ruleLibBody [data-rm-client]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var key = this.getAttribute("data-rm-client");
+        var c = RuleLib.getClient(state.ruleLib, key);
+        if (!c) return;
+        if (!window.confirm("Remove client \"" + c.client_name + "\" and its rate? (You can re-add it later.)")) return;
+        state.ruleLib.clients = state.ruleLib.clients.filter(function (x) { return x.client_key !== key; });
+        saveRuleLib(); renderRates(); recompute();
+        flash("saveStatus", "Removed " + c.client_name + ".");
+      });
+    });
     document.querySelectorAll("#ruleLibBody [data-rf-approve]").forEach(function (b) {
       b.addEventListener("click", function () {
         var key = this.getAttribute("data-rf-approve");
